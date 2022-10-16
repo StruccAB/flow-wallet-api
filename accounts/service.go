@@ -324,7 +324,7 @@ func (s *ServiceImpl) syncAccountKeyCount(ctx context.Context, address flow.Addr
 		entry.WithFields(log.Fields{"args": args}).Debug("args prepared")
 
 		// NOTE: sync, so will wait for transaction to be sent & sealed
-		_, tx, err := s.txs.Create(ctx, true, dbAccount.Address, code, args, transactions.General)
+		_, tx, err := s.txs.Create(ctx, true, dbAccount.Address, code, args, transactions.General, false)
 		if err != nil {
 			entry.WithFields(log.Fields{"err": err}).Error("failed to create transaction")
 			return 0, tx.TransactionId, err
