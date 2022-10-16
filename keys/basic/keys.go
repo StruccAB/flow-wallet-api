@@ -136,9 +136,17 @@ func (s *KeyManager) Save(key keys.Private) (keys.Storable, error) {
 
 func (s *KeyManager) Load(key keys.Storable, encryptionType string) (keys.Private, error) {
 	crypter := s.crypter
-	if encryptionType != s.cfg.EncryptionKeyType && encryptionType == s.cfg.EncryptionKeyMigrate {
-		crypter = encryption.NewAESCrypter([]byte(s.cfg.EncryptionKeyMigrate))
+	if encryptionType != s.cfg.EncryptionKeyType && encryptionType == s.cfg.EncryptionKeyTypeMigrate {
+		switch encryptionType {
+		default:
+			crypter = encryption.NewAESCrypter([]byte(s.cfg.EncryptionKeyMigrate))
+		case encryption.EncryptionKeyTypeGoogleKMS:
+			crypter = google.NewGoogleKMSCrypter([]byte(s.cfg.EncryptionKeyMigrate))
+		case encryption.EncryptionKeyTypeAWSKMS:
+			crypter = aws.NewAWSKMSCrypter([]byte(s.cfg.EncryptionKeyMigrate))
+		}
 	}
+
 	decValue, err := crypter.Decrypt([]byte(key.Value))
 	if err != nil {
 		return keys.Private{}, err
