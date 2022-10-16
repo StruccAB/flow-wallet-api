@@ -163,7 +163,7 @@ func (s *KeyManager) MakeAuthorizer(ctx context.Context, address flow.Address) (
 		k = s.adminAccountKey
 	} else {
 		// Get the "least recently used" key for this address
-		sk, err := s.store.AccountKey(flow_helpers.FormatAddress(address))
+		sk, err := s.store.AccountKey(flow_helpers.FormatAddress(address), s.cfg.DefaultKeyType)
 		if err != nil {
 			return keys.Authorizer{}, err
 		}
