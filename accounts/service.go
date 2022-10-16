@@ -221,8 +221,39 @@ func (s *ServiceImpl) syncAccountKeyCount(ctx context.Context, address flow.Addr
 		return 0, "", err
 	}
 
+	var usableKeys []keys.Storable
+	for i := range dbAccount.Keys {
+		key := dbAccount.Keys[i]
+		if key.Type == s.cfg.DefaultKeyType {
+			usableKeys = append(usableKeys, key)
+		}
+	}
+
+	pbks := []cadence.Value{}
+	if len(usableKeys) <= 0 {
+		accountKey, newPrivateKey, err := s.km.Generate(ctx, flowAccount.Keys[len(flowAccount.Keys)-1].Index+1, s.cfg.DefaultKeyWeight)
+		if err != nil {
+			return 0, "", err
+		}
+
+		// Convert the key to storable form (encrypt it)
+		newKey, err := s.km.Save(*newPrivateKey)
+		if err != nil {
+			return 0, "", err
+		}
+		newKey.PublicKey = accountKey.PublicKey.String()
+		dbAccount.Keys = append(dbAccount.Keys, newKey)
+		usableKeys = []keys.Storable{newKey}
+
+		pbk, err := cadence.NewString(newKey.PublicKey[2:]) // TODO: use a helper function to trim "0x" prefix
+		if err != nil {
+			return 0, "", err
+		}
+		pbks = append(pbks, pbk)
+	}
+
 	// Pick a source key that will be used to create the new keys & decode public key
-	sourceKey := dbAccount.Keys[0] // NOTE: Only valid (not revoked) keys should be stored in the database
+	sourceKey := usableKeys[0] // NOTE: Only valid (not revoked) keys should be stored in the database
 	sourceKeyPbkString := strings.TrimPrefix(sourceKey.PublicKey, "0x")
 	sourcePbk, err := flow_crypto.DecodePublicKeyHex(flow_crypto.StringToSignatureAlgorithm(sourceKey.SignAlgo), sourceKeyPbkString)
 	if err != nil {
@@ -240,8 +271,8 @@ func (s *ServiceImpl) syncAccountKeyCount(ctx context.Context, address flow.Addr
 		}
 	}
 
-	if len(validKeys) != len(dbAccount.Keys) {
-		entry.WithFields(log.Fields{"onChain": len(validKeys), "database": len(dbAccount.Keys)}).Warn("on-chain vs. database key count mismatch")
+	if len(validKeys) != len(usableKeys) {
+		entry.WithFields(log.Fields{"onChain": len(validKeys), "database": len(usableKeys)}).Warn("on-chain vs. database usable key count mismatch")
 	}
 
 	entry.WithFields(log.Fields{"validKeys": validKeys}).Trace("filtered valid keys")
@@ -251,7 +282,6 @@ func (s *ServiceImpl) syncAccountKeyCount(ctx context.Context, address flow.Addr
 
 		cloneCount := numKeys - len(validKeys)
 		code := template_strings.AddAccountKeysTransaction
-		pbks := []cadence.Value{}
 
 		entry.WithFields(log.Fields{"validKeys": len(validKeys), "numKeys": numKeys, "cloneCount": cloneCount}).Debug("going to add keys")
 
