@@ -61,9 +61,9 @@ type Config struct {
 	DefaultAccountKeyCount uint `env:"DEFAULT_ACCOUNT_KEY_COUNT" envDefault:"1"`
 
 	// Old key information for migration purpose
-	DefaultKeyTypeOld    string `env:"DEFAULT_KEY_TYPE_OLD" envDefault:"local"`
-	EncryptionKeyOld     string `env:"ENCRYPTION_KEY_OLD"`
-	EncryptionKeyTypeOld string `env:"ENCRYPTION_KEY_TYPE_OLD" envDefault:"local"`
+	DefaultKeyTypeMigrate    string `env:"DEFAULT_KEY_TYPE_MIGRATE" envDefault:"local"`
+	EncryptionKeyMigrate     string `env:"ENCRYPTION_KEY_MIGRATE"`
+	EncryptionKeyTypeMigrate string `env:"ENCRYPTION_KEY_TYPE_MIGRATE" envDefault:"local"`
 
 	// -- Database --
 

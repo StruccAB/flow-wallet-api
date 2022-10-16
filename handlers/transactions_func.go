@@ -81,7 +81,7 @@ func (s *Transactions) CreateFunc(rw http.ResponseWriter, r *http.Request) {
 
 	// Decide whether to serve sync or async, default async
 	sync := r.FormValue(SyncQueryParameter) != ""
-	job, transaction, err := s.service.Create(r.Context(), sync, vars["address"], txReq.Code, txReq.Arguments, transactions.General, false)
+	job, transaction, err := s.service.Create(r.Context(), sync, vars["address"], txReq.Code, txReq.Arguments, transactions.General)
 
 	if err != nil {
 		handleError(rw, r, err)

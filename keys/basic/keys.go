@@ -22,7 +22,6 @@ type KeyManager struct {
 	store           keys.Store
 	fc              flow_helpers.FlowClient
 	crypter         encryption.Crypter
-	crypterOld      encryption.Crypter
 	adminAccountKey keys.Private
 	cfg             *configs.Config
 }
@@ -45,7 +44,6 @@ func NewKeyManager(cfg *configs.Config, store keys.Store, fc flow_helpers.FlowCl
 	}
 
 	var crypter encryption.Crypter
-	var crypterOld encryption.Crypter
 	switch cfg.EncryptionKeyType {
 	default:
 		crypter = encryption.NewAESCrypter([]byte(cfg.EncryptionKey))
@@ -55,26 +53,10 @@ func NewKeyManager(cfg *configs.Config, store keys.Store, fc flow_helpers.FlowCl
 		crypter = aws.NewAWSKMSCrypter([]byte(cfg.EncryptionKey))
 	}
 
-	if cfg.EncryptionKeyOld != "" {
-		switch cfg.EncryptionKeyTypeOld {
-		default:
-			crypterOld = crypter
-		case encryption.EncryptionKeyTypeLocal:
-			crypterOld = encryption.NewAESCrypter([]byte(cfg.EncryptionKeyOld))
-		case encryption.EncryptionKeyTypeGoogleKMS:
-			crypterOld = google.NewGoogleKMSCrypter([]byte(cfg.EncryptionKeyOld))
-		case encryption.EncryptionKeyTypeAWSKMS:
-			crypterOld = aws.NewAWSKMSCrypter([]byte(cfg.EncryptionKeyOld))
-		}
-	} else {
-		crypterOld = crypter
-	}
-
 	return &KeyManager{
 		store,
 		fc,
 		crypter,
-		crypterOld,
 		adminAccountKey,
 		cfg,
 	}
@@ -152,14 +134,12 @@ func (s *KeyManager) Save(key keys.Private) (keys.Storable, error) {
 	}, nil
 }
 
-func (s *KeyManager) Load(key keys.Storable, old bool) (keys.Private, error) {
-	var decValue []byte
-	var err error
-	if old {
-		decValue, err = s.crypterOld.Decrypt([]byte(key.Value))
-	} else {
-		decValue, err = s.crypter.Decrypt([]byte(key.Value))
+func (s *KeyManager) Load(key keys.Storable, encryptionType string) (keys.Private, error) {
+	crypter := s.crypter
+	if encryptionType != s.cfg.EncryptionKeyType && encryptionType == s.cfg.EncryptionKeyMigrate {
+		crypter = encryption.NewAESCrypter([]byte(s.cfg.EncryptionKeyMigrate))
 	}
+	decValue, err := crypter.Decrypt([]byte(key.Value))
 	if err != nil {
 		return keys.Private{}, err
 	}
@@ -173,29 +153,29 @@ func (s *KeyManager) Load(key keys.Storable, old bool) (keys.Private, error) {
 }
 
 func (s *KeyManager) AdminAuthorizer(ctx context.Context) (keys.Authorizer, error) {
-	return s.MakeAuthorizer(ctx, flow.HexToAddress(s.cfg.AdminAddress), false)
+	return s.MakeAuthorizer(ctx, flow.HexToAddress(s.cfg.AdminAddress))
 }
 
-func (s *KeyManager) UserAuthorizer(ctx context.Context, address flow.Address, old bool) (keys.Authorizer, error) {
-	return s.MakeAuthorizer(ctx, address, old)
+func (s *KeyManager) UserAuthorizer(ctx context.Context, address flow.Address, encryptionType, keyType string) (keys.Authorizer, error) {
+	return s.MakeAuthorizerWith(ctx, address, encryptionType, keyType)
 }
 
-func (s *KeyManager) MakeAuthorizer(ctx context.Context, address flow.Address, old bool) (keys.Authorizer, error) {
+func (s *KeyManager) MakeAuthorizer(ctx context.Context, address flow.Address) (keys.Authorizer, error) {
+	return s.MakeAuthorizerWith(ctx, address, s.cfg.AdminKeyType, s.cfg.AdminKeyType)
+}
+
+func (s *KeyManager) MakeAuthorizerWith(ctx context.Context, address flow.Address, encryptionType, keyType string) (keys.Authorizer, error) {
 	var k keys.Private
 
 	if address == flow.HexToAddress(s.cfg.AdminAddress) {
 		k = s.adminAccountKey
 	} else {
 		// Get the "least recently used" key for this address
-		keyType := s.cfg.DefaultKeyType
-		if old {
-			keyType = s.cfg.DefaultKeyTypeOld
-		}
 		sk, err := s.store.AccountKey(flow_helpers.FormatAddress(address), keyType)
 		if err != nil {
 			return keys.Authorizer{}, err
 		}
-		k, err = s.Load(sk, old)
+		k, err = s.Load(sk, encryptionType)
 		if err != nil {
 			return keys.Authorizer{}, err
 		}

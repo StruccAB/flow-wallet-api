@@ -229,6 +229,8 @@ func (s *ServiceImpl) syncAccountKeyCount(ctx context.Context, address flow.Addr
 		}
 	}
 
+	encryptionType := s.cfg.EncryptionKeyType
+	keyType := s.cfg.DefaultKeyType
 	if len(usableKeys) <= 0 {
 		accountKey, newPrivateKey, err := s.km.Generate(ctx, flowAccount.Keys[len(flowAccount.Keys)-1].Index+1, s.cfg.DefaultKeyWeight)
 		if err != nil {
@@ -242,6 +244,8 @@ func (s *ServiceImpl) syncAccountKeyCount(ctx context.Context, address flow.Addr
 		}
 		newKey.PublicKey = accountKey.PublicKey.String()
 		usableKeys = []keys.Storable{newKey}
+		encryptionType = s.cfg.EncryptionKeyTypeMigrate
+		keyType = s.cfg.DefaultKeyTypeMigrate
 	}
 
 	// Pick a source key that will be used to create the new keys & decode public key
@@ -317,7 +321,7 @@ func (s *ServiceImpl) syncAccountKeyCount(ctx context.Context, address flow.Addr
 		entry.WithFields(log.Fields{"args": args}).Debug("args prepared")
 
 		// NOTE: sync, so will wait for transaction to be sent & sealed
-		_, tx, err := s.txs.Create(ctx, true, dbAccount.Address, code, args, transactions.General, true)
+		_, tx, err := s.txs.CreateWith(ctx, true, dbAccount.Address, encryptionType, keyType, code, args, transactions.General)
 		if err != nil {
 			entry.WithFields(log.Fields{"err": err}).Error("failed to create transaction")
 			return 0, tx.TransactionId, err
