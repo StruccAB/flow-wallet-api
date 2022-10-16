@@ -229,7 +229,6 @@ func (s *ServiceImpl) syncAccountKeyCount(ctx context.Context, address flow.Addr
 		}
 	}
 
-	pbks := []cadence.Value{}
 	if len(usableKeys) <= 0 {
 		accountKey, newPrivateKey, err := s.km.Generate(ctx, flowAccount.Keys[len(flowAccount.Keys)-1].Index+1, s.cfg.DefaultKeyWeight)
 		if err != nil {
@@ -242,14 +241,7 @@ func (s *ServiceImpl) syncAccountKeyCount(ctx context.Context, address flow.Addr
 			return 0, "", err
 		}
 		newKey.PublicKey = accountKey.PublicKey.String()
-		dbAccount.Keys = append(dbAccount.Keys, newKey)
 		usableKeys = []keys.Storable{newKey}
-
-		pbk, err := cadence.NewString(newKey.PublicKey[2:]) // TODO: use a helper function to trim "0x" prefix
-		if err != nil {
-			return 0, "", err
-		}
-		pbks = append(pbks, pbk)
 	}
 
 	// Pick a source key that will be used to create the new keys & decode public key
@@ -282,6 +274,7 @@ func (s *ServiceImpl) syncAccountKeyCount(ctx context.Context, address flow.Addr
 
 		cloneCount := numKeys - len(validKeys)
 		code := template_strings.AddAccountKeysTransaction
+		pbks := []cadence.Value{}
 
 		entry.WithFields(log.Fields{"validKeys": len(validKeys), "numKeys": numKeys, "cloneCount": cloneCount}).Debug("going to add keys")
 
@@ -324,7 +317,7 @@ func (s *ServiceImpl) syncAccountKeyCount(ctx context.Context, address flow.Addr
 		entry.WithFields(log.Fields{"args": args}).Debug("args prepared")
 
 		// NOTE: sync, so will wait for transaction to be sent & sealed
-		_, tx, err := s.txs.Create(ctx, true, dbAccount.Address, code, args, transactions.General, false)
+		_, tx, err := s.txs.Create(ctx, true, dbAccount.Address, code, args, transactions.General, true)
 		if err != nil {
 			entry.WithFields(log.Fields{"err": err}).Error("failed to create transaction")
 			return 0, tx.TransactionId, err
