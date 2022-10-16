@@ -20,7 +20,7 @@ func NewGormStore(db *gorm.DB) Store {
 	return &GormStore{db: db}
 }
 
-func (s *GormStore) AccountKey(address, tType string) (Storable, error) {
+func (s *GormStore) AccountKey(address, keyType string) (Storable, error) {
 	s.accountKeyMutex.Lock()
 	defer s.accountKeyMutex.Unlock()
 
@@ -30,7 +30,7 @@ func (s *GormStore) AccountKey(address, tType string) (Storable, error) {
 		if err := tx.
 			// NOWAIT so this call will fail rather than use a stale value
 			Clauses(clause.Locking{Strength: "UPDATE", Options: "NOWAIT"}).
-			Where(&Storable{AccountAddress: address, Type: tType}).
+			Where(&Storable{AccountAddress: address, Type: keyType}).
 			Order("updated_at asc").
 			Limit(1).Find(&k).Error; err != nil {
 			return err
