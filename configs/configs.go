@@ -57,11 +57,13 @@ type Config struct {
 	EncryptionKey string `env:"ENCRYPTION_KEY,notEmpty"`
 	// Encryption key type, one of: local, aws_kms, google_kms
 	EncryptionKeyType string `env:"ENCRYPTION_KEY_TYPE,notEmpty" envDefault:"local"`
-	// Old Encryption key for migration purpose
-	EncryptionKeyOld     string `env:"ENCRYPTION_KEY_OLD"`
-	EncryptionKeyTypeOld string `env:"ENCRYPTION_KEY_TYPE_OLD" envDefault:"local"`
 	// DefaultAccountKeyCount specifies how many times the account key will be duplicated upon account creation, does not affect existing accounts
 	DefaultAccountKeyCount uint `env:"DEFAULT_ACCOUNT_KEY_COUNT" envDefault:"1"`
+
+	// Old key information for migration purpose
+	DefaultKeyTypeOld    string `env:"DEFAULT_KEY_TYPE_OLD" envDefault:"local"`
+	EncryptionKeyOld     string `env:"ENCRYPTION_KEY_OLD"`
+	EncryptionKeyTypeOld string `env:"ENCRYPTION_KEY_TYPE_OLD" envDefault:"local"`
 
 	// -- Database --
 
