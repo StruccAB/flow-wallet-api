@@ -138,7 +138,7 @@ func (s *KeyManager) Load(key keys.Storable, encryptionType string) (keys.Privat
 	crypter := s.crypter
 	if encryptionType != s.cfg.EncryptionKeyType && encryptionType == s.cfg.EncryptionKeyTypeMigrate {
 		switch encryptionType {
-		default:
+		case encryption.EncryptionKeyTypeLocal:
 			crypter = encryption.NewAESCrypter([]byte(s.cfg.EncryptionKeyMigrate))
 		case encryption.EncryptionKeyTypeGoogleKMS:
 			crypter = google.NewGoogleKMSCrypter([]byte(s.cfg.EncryptionKeyMigrate))
