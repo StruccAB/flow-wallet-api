@@ -29,7 +29,7 @@ func AddContract(
 	}
 
 	// Get user account authorizer
-	proposer, err := km.UserAuthorizer(ctx, flow.HexToAddress(accountAddress))
+	proposer, err := km.UserAuthorizer(ctx, flow.HexToAddress(accountAddress), "local", "local")
 	if err != nil {
 		return err
 	}

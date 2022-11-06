@@ -134,8 +134,20 @@ func (s *KeyManager) Save(key keys.Private) (keys.Storable, error) {
 	}, nil
 }
 
-func (s *KeyManager) Load(key keys.Storable) (keys.Private, error) {
-	decValue, err := s.crypter.Decrypt([]byte(key.Value))
+func (s *KeyManager) Load(key keys.Storable, encryptionType string) (keys.Private, error) {
+	crypter := s.crypter
+	if encryptionType != s.cfg.EncryptionKeyType && encryptionType == s.cfg.EncryptionKeyTypeMigrate {
+		switch encryptionType {
+		case encryption.EncryptionKeyTypeLocal:
+			crypter = encryption.NewAESCrypter([]byte(s.cfg.EncryptionKeyMigrate))
+		case encryption.EncryptionKeyTypeGoogleKMS:
+			crypter = google.NewGoogleKMSCrypter([]byte(s.cfg.EncryptionKeyMigrate))
+		case encryption.EncryptionKeyTypeAWSKMS:
+			crypter = aws.NewAWSKMSCrypter([]byte(s.cfg.EncryptionKeyMigrate))
+		}
+	}
+
+	decValue, err := crypter.Decrypt([]byte(key.Value))
 	if err != nil {
 		return keys.Private{}, err
 	}
@@ -152,22 +164,26 @@ func (s *KeyManager) AdminAuthorizer(ctx context.Context) (keys.Authorizer, erro
 	return s.MakeAuthorizer(ctx, flow.HexToAddress(s.cfg.AdminAddress))
 }
 
-func (s *KeyManager) UserAuthorizer(ctx context.Context, address flow.Address) (keys.Authorizer, error) {
-	return s.MakeAuthorizer(ctx, address)
+func (s *KeyManager) UserAuthorizer(ctx context.Context, address flow.Address, encryptionType, keyType string) (keys.Authorizer, error) {
+	return s.MakeAuthorizerWith(ctx, address, encryptionType, keyType)
 }
 
 func (s *KeyManager) MakeAuthorizer(ctx context.Context, address flow.Address) (keys.Authorizer, error) {
+	return s.MakeAuthorizerWith(ctx, address, s.cfg.AdminKeyType, s.cfg.AdminKeyType)
+}
+
+func (s *KeyManager) MakeAuthorizerWith(ctx context.Context, address flow.Address, encryptionType, keyType string) (keys.Authorizer, error) {
 	var k keys.Private
 
 	if address == flow.HexToAddress(s.cfg.AdminAddress) {
 		k = s.adminAccountKey
 	} else {
 		// Get the "least recently used" key for this address
-		sk, err := s.store.AccountKey(flow_helpers.FormatAddress(address))
+		sk, err := s.store.AccountKey(flow_helpers.FormatAddress(address), keyType)
 		if err != nil {
 			return keys.Authorizer{}, err
 		}
-		k, err = s.Load(sk)
+		k, err = s.Load(sk, encryptionType)
 		if err != nil {
 			return keys.Authorizer{}, err
 		}

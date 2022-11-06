@@ -60,6 +60,11 @@ type Config struct {
 	// DefaultAccountKeyCount specifies how many times the account key will be duplicated upon account creation, does not affect existing accounts
 	DefaultAccountKeyCount uint `env:"DEFAULT_ACCOUNT_KEY_COUNT" envDefault:"1"`
 
+	// Old key information for migration purpose
+	DefaultKeyTypeMigrate    string `env:"DEFAULT_KEY_TYPE_MIGRATE" envDefault:"local"`
+	EncryptionKeyMigrate     string `env:"ENCRYPTION_KEY_MIGRATE"`
+	EncryptionKeyTypeMigrate string `env:"ENCRYPTION_KEY_TYPE_MIGRATE" envDefault:"local"`
+
 	// -- Database --
 
 	DatabaseDSN     string `env:"DATABASE_DSN" envDefault:"wallet.db"`

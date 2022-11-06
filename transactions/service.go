@@ -19,7 +19,8 @@ import (
 )
 
 type Service interface {
-	Create(ctx context.Context, sync bool, proposerAddress string, code string, args []Argument, tType Type) (*jobs.Job, *Transaction, error)
+	Create(ctx context.Context, sync bool, proposerAddress, code string, args []Argument, tType Type) (*jobs.Job, *Transaction, error)
+	CreateWith(ctx context.Context, sync bool, proposerAddress, encryptionType, keyType, code string, args []Argument, tType Type) (*jobs.Job, *Transaction, error)
 	Sign(ctx context.Context, proposerAddress string, code string, args []Argument) (*SignedTransaction, error)
 	List(limit, offset int) ([]Transaction, error)
 	ListForAccount(tType Type, address string, limit, offset int) ([]Transaction, error)
@@ -68,8 +69,12 @@ func NewService(
 	return svc
 }
 
-func (s *ServiceImpl) Create(ctx context.Context, sync bool, proposerAddress string, code string, args []Argument, tType Type) (*jobs.Job, *Transaction, error) {
-	transaction, err := s.newTransaction(ctx, proposerAddress, code, args, tType)
+func (s *ServiceImpl) Create(ctx context.Context, sync bool, proposerAddress, code string, args []Argument, tType Type) (*jobs.Job, *Transaction, error) {
+	return s.CreateWith(ctx, sync, proposerAddress, s.cfg.EncryptionKeyType, s.cfg.DefaultKeyType, code, args, tType)
+}
+
+func (s *ServiceImpl) CreateWith(ctx context.Context, sync bool, proposerAddress, encryptionType, keyType, code string, args []Argument, tType Type) (*jobs.Job, *Transaction, error) {
+	transaction, err := s.newTransaction(ctx, proposerAddress, encryptionType, keyType, code, args, tType)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error while getting new transaction: %w", err)
 	}
@@ -102,7 +107,7 @@ func (s *ServiceImpl) Create(ctx context.Context, sync bool, proposerAddress str
 }
 
 func (s *ServiceImpl) Sign(ctx context.Context, proposerAddress string, code string, args []Argument) (*SignedTransaction, error) {
-	flowTx, err := s.buildFlowTransaction(ctx, proposerAddress, code, args)
+	flowTx, err := s.buildFlowTransaction(ctx, proposerAddress, s.cfg.EncryptionKeyType, s.cfg.DefaultKeyType, code, args)
 	if err != nil {
 		return nil, err
 	}
@@ -208,7 +213,7 @@ func (s *ServiceImpl) GetOrCreateTransaction(transactionId string) *Transaction 
 	return s.store.GetOrCreateTransaction(transactionId)
 }
 
-func (s *ServiceImpl) buildFlowTransaction(ctx context.Context, proposerAddress, code string, arguments []Argument) (*flow.Transaction, error) {
+func (s *ServiceImpl) buildFlowTransaction(ctx context.Context, proposerAddress, encryptionType, keyType, code string, arguments []Argument) (*flow.Transaction, error) {
 	latestBlockID, err := flow_helpers.LatestBlockId(ctx, s.fc)
 	if err != nil {
 		return nil, err
@@ -220,7 +225,7 @@ func (s *ServiceImpl) buildFlowTransaction(ctx context.Context, proposerAddress,
 		return nil, fmt.Errorf("error while getting admin authorizer for payer: %w", err)
 	}
 
-	proposer, err := s.getProposalAuthorizer(ctx, proposerAddress)
+	proposer, err := s.getProposalAuthorizer(ctx, proposerAddress, encryptionType, keyType)
 	if err != nil {
 		return nil, err
 	}
@@ -264,13 +269,13 @@ func (s *ServiceImpl) buildFlowTransaction(ctx context.Context, proposerAddress,
 	return flowTx, nil
 }
 
-func (s *ServiceImpl) newTransaction(ctx context.Context, proposerAddress string, code string, args []Argument, tType Type) (*Transaction, error) {
+func (s *ServiceImpl) newTransaction(ctx context.Context, proposerAddress, encryptionType, keyType, code string, args []Argument, tType Type) (*Transaction, error) {
 	tx := &Transaction{
 		ProposerAddress: proposerAddress,
 		TransactionType: tType,
 	}
 
-	flowTx, err := s.buildFlowTransaction(ctx, proposerAddress, code, args)
+	flowTx, err := s.buildFlowTransaction(ctx, proposerAddress, encryptionType, keyType, code, args)
 	if err != nil {
 		return nil, fmt.Errorf("error while building transaction: %w", err)
 	}
@@ -281,7 +286,7 @@ func (s *ServiceImpl) newTransaction(ctx context.Context, proposerAddress string
 	return tx, nil
 }
 
-func (s *ServiceImpl) getProposalAuthorizer(ctx context.Context, proposerAddress string) (keys.Authorizer, error) {
+func (s *ServiceImpl) getProposalAuthorizer(ctx context.Context, proposerAddress, encryptionType, keyType string) (keys.Authorizer, error) {
 	// Validate the input address.
 	proposerAddress, err := flow_helpers.ValidateAddress(proposerAddress, s.cfg.ChainID)
 	if err != nil {
@@ -295,7 +300,7 @@ func (s *ServiceImpl) getProposalAuthorizer(ctx context.Context, proposerAddress
 			return keys.Authorizer{}, fmt.Errorf("error while getting admin authorizer: %w", err)
 		}
 	} else {
-		proposer, err = s.km.UserAuthorizer(ctx, flow.HexToAddress(proposerAddress))
+		proposer, err = s.km.UserAuthorizer(ctx, flow.HexToAddress(proposerAddress), encryptionType, keyType)
 		if err != nil {
 			return keys.Authorizer{}, fmt.Errorf("error while getting user authorizer: %w", err)
 		}

@@ -28,11 +28,11 @@ type Manager interface {
 	// Save is responsible for converting an "in flight" key to a storable key.
 	Save(Private) (Storable, error)
 	// Load is responsible for converting a storable key to an "in flight" key.
-	Load(Storable) (Private, error)
+	Load(Storable, string) (Private, error)
 	// AdminAuthorizer returns an Authorizer for the applications admin account.
 	AdminAuthorizer(context.Context) (Authorizer, error)
 	// UserAuthorizer returns an Authorizer for the given address.
-	UserAuthorizer(ctx context.Context, address flow.Address) (Authorizer, error)
+	UserAuthorizer(ctx context.Context, address flow.Address, encryptionType, keyType string) (Authorizer, error)
 	// CheckAdminProposalKeyCount checks if admin proposal keys have been correctly initiated (counts match).
 	CheckAdminProposalKeyCount(ctx context.Context) error
 	// InitAdminProposalKeys will init the admin proposal keys in the database
